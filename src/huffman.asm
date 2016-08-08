@@ -16,6 +16,7 @@ start:
     ; Skip over argc and argc[0]
     add rsp, 16 
     call count
+    call sort
 
     jmp exit
 
@@ -27,7 +28,7 @@ count:
     ; Allocate memory 
     mov rax, sys_mmap
     xor rdi, rdi
-    mov rsi, 0x36   ; 54 bytes
+    mov rsi, 0x1000 ; 4096 bytes
     mov rdx, 0x3    ; READ and WRITE access
     mov r10, 0x1002 ; PRIVATE and ANON flag 
     mov r8, -0x1    ; No file backing
@@ -58,19 +59,17 @@ count_search_loop:
     je count_search_add  ; Jump to create new map entry
 
     ; Calculate address of letter 
-    imul rbx, rcx, 0x5
+    imul rbx, rcx, 0x6
     add rbx, rax 
     add rbx, 0x4
 
-    cmp dl, byte [rbx]     ; Check if letters are equal
+    cmp dl, byte [rbx + 1]     ; Check if letters are equal
     jne count_search_continue
 
-    inc rbx
-
     ; Found existing map entry for the letter, so add one to the frequency count
-    mov r8d, dword [rbx]
+    mov r8d, dword [rbx + 2]
     inc r8d 
-    mov [rbx], r8d 
+    mov [rbx + 2], r8d 
     jmp count_search_exit
 
 count_search_continue:
@@ -84,14 +83,14 @@ count_search_add:
     inc ebx
     mov [rax], dword ebx
 
-    imul rbx, rcx, 0x5
+    imul rbx, rcx, 0x6
     add rbx, rax 
     add rbx, 0x4
 
     ; Set map entry data
-    mov [rbx], dl
-    inc rbx
-    mov dword [rbx], 0x1
+    mov byte [rbx], 0x0
+    mov [rbx + 1], dl
+    mov dword [rbx + 2], 0x1
 
 count_search_exit:
     pop rcx ; Restore counter register for outer loop (letters loop)
@@ -101,6 +100,57 @@ count_search_exit:
 count_exit:
     mov rsp, rbp
     pop rbp
+    ret
+
+; Insertion sort on the map
+sort:
+    xor rcx, rcx
+
+sort_loop:
+    inc rcx
+
+    cmp ecx, dword [rax]
+    je sort_exit
+
+    imul r15, rcx, 0x6
+    add r15, rax
+    add r15, 0x4
+
+    push rcx
+
+sort_search:
+    dec rcx
+
+    cmp rcx, -0x1
+    je sort_search_exit
+
+    imul r14, rcx, 0x6
+    add r14, rax
+    add r14, 0x4
+
+    mov r13d, dword [r15 + 2]
+    cmp r13d, dword [r14 + 2]
+    jl sort_swap
+    jmp sort_search_exit
+
+sort_swap:
+    mov r12d, [r14 + 2]
+    mov [r14 + 2], r13d
+    mov [r15 + 2], r12d
+
+    mov r13b, [r15 + 1]
+    mov r12b, [r14 + 1]
+    mov [r14 + 1], r13b
+    mov [r15 + 1], r12b
+
+    mov r15, r14
+    jmp sort_search
+
+sort_search_exit:
+    pop rcx
+    jmp sort_loop
+
+sort_exit:
     ret
 
 ; Create cipher
