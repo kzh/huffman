@@ -2,6 +2,7 @@ global start
 
 section .data
     sys_write: equ 0x2000004 
+    sys_exit: equ 0x2000001
     sys_mmap: equ 0x20000C5
 
     err_insufficient_args: db "Insufficient arguments", 0xA
@@ -14,9 +15,10 @@ start:
     jl insufficient_args
 
     ; Skip over argc and argc[0]
-    add rsp, 16 
+    add rsp, 0x10
     call count
     call sort
+    call tree
 
     jmp exit
 
@@ -76,7 +78,7 @@ count_search_continue:
     inc ecx ; Move to next map entry
     jmp count_search_loop
 
-; Create new map entry { char, int }
+; Create new map entry { bool, char, int }
 count_search_add:
     ; Increase map length
     mov ebx, [rax]
@@ -153,6 +155,33 @@ sort_search_exit:
 sort_exit:
     ret
 
+; Build huffman tree
+tree:
+    mov rcx, 0x0 ; Set counter register to zero
+
+    ; Find memory address to build tree
+    xor r15, r15
+    imul r15d, dword [rax], 0x6
+    add r15, rax
+    add r15, 0x4
+
+    mov rbx, rax
+    add rbx, 0x4
+
+; Create leaves from the frequency map
+tree_base:
+    mov [r15 + rcx * 8], rbx
+    add rbx, 0x6
+    inc rcx
+
+    cmp ecx, dword [rax]
+    jne tree_base 
+
+; Start constructing tree from the leaves
+tree_construct:
+
+    ret
+
 ; Create cipher
 create_key:
 
@@ -168,11 +197,11 @@ insufficient_args:
     mov rax, sys_write 
     mov rdi, 1
     mov rsi, err_insufficient_args
-    mov rdx, 23
+    mov rdx, 0x17 
     syscall
     jmp exit
 
 exit:
-    mov     rax, 0x2000001 ; exit
-    mov     rdi, 0
+    mov rax, sys_exit ; exit
+    mov rdi, 0
     syscall
