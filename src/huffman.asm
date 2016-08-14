@@ -132,10 +132,9 @@ sort_search:
 
     mov r13d, dword [r15 + 2]
     cmp r13d, dword [r14 + 2]
-    jl sort_swap
-    jmp sort_search_exit
+    jge sort_search_exit
 
-sort_swap:
+    ; Swap map entries at r14 and 15
     mov r12d, [r14 + 2]
     mov [r14 + 2], r13d
     mov [r15 + 2], r12d
@@ -157,9 +156,9 @@ sort_exit:
 
 ; Build huffman tree
 tree:
-    mov rcx, 0x0 ; Set counter register to zero
+    xor rcx, rcx ; Set counter register to zero
 
-    ; Find memory address to build tree
+    ; Determine memory address to build tree
     xor r15, r15
     imul r15d, dword [rax], 0x6
     add r15, rax
@@ -167,6 +166,9 @@ tree:
 
     mov rbx, rax
     add rbx, 0x4
+
+    imul r14d, dword [rax], 0x8
+    add r14, r15 
 
 ; Create leaves from the frequency map
 tree_base:
@@ -177,17 +179,143 @@ tree_base:
     cmp ecx, dword [rax]
     jne tree_base 
 
+    ; Check for only one leaf, if so no need to build tree
+    cmp rcx, 0x1 
+    je tree_exit
+
 ; Start constructing tree from the leaves
 tree_construct:
+    push rcx
+    ; Load params to tree_create_node
+    mov r13, [r15 + 8]
+    push r13
+    mov r13, [r15]
+    push r13
 
+    ; Create node
+    call tree_create_node
+
+    ; Clear params
+    add rsp, 0x10 
+
+    pop rcx
+
+    ; Load params into tree_get_freq
+    push rax
+
+    call tree_get_freq
+
+    ; Save return value to r8
+    mov r8d, eax
+
+    pop r11
+
+    add r15, 0x8
+    mov [r15], r11
+
+    mov r9, r15
+
+    dec rcx
+    cmp rcx, 0x1 
+    je tree_exit
+
+    mov r10, 0x1 
+tree_insert:
+    mov rax, [r9 + 8]
+    push rax
+    call tree_get_freq
+    add rsp, 0x8
+
+    cmp eax, r8d
+    jg tree_construct
+
+    mov rax, [r9 + 8]
+    mov [r9], rax    
+    mov [r9 + 8], r11 
+
+    add r9, 0x8
+    inc r10
+    cmp r10, rcx
+    jne tree_insert
+    jmp tree_construct
+
+tree_exit:
     ret
 
-; Create cipher
-create_key:
+; Create huffman tree node { bool, void*, void*, int }
+tree_create_node:
+    push rbp
+    mov rbp, rsp
 
+    mov byte [r14], 0x1
+
+    ; Store left child
+    mov r13, [rbp + 16]
+    mov [r14 + 1], r13
+
+    ; Retrieve left child frequency 
+    push r13
+    call tree_get_freq
+    pop r13
+    mov rcx, rax
+
+    ; Store right child
+    mov r13, [rbp + 24]
+    mov [r14 + 9], r13
+
+    ; Retrieve right child frequency
+    push r13
+    call tree_get_freq
+    pop r13
+    add rcx, rax
+
+    ; Store total frequency of left and right child
+    mov [r14 + 17], ecx
+
+    mov rax, r14
+    add r14, 0x15
+    mov rsp, rbp
+    pop rbp
     ret
 
-; Encode string using cipher
+; Returns frequency of tree node in eax
+tree_get_freq:
+    push rbp
+    mov rbp, rsp
+
+    ; Load param
+    mov rax, [rbp + 16]
+
+    ; Check if node param is non null 
+    cmp rax, 0x0
+    je tree_get_freq_def
+
+    ; Check if node param is a leaf
+    cmp byte [rax], 0x0
+    jne tree_get_node_freq
+
+    ; Get size of leaf
+    mov eax, dword [rax + 2]
+    jmp tree_get_freq_exit
+
+tree_get_node_freq:
+    ; Check if node param is not a leaf
+    cmp byte [rax], 0x1
+    jne tree_get_freq_def
+
+    ; Get size of node
+    mov eax, dword [rax + 17]
+    jmp tree_get_freq_exit
+
+tree_get_freq_def:
+    mov rax, 0x0
+
+tree_get_freq_exit:
+    mov rsp, rbp
+    pop rbp
+    ret
+
+; Encode string using huffman tree 
 encode:
 
     ret
@@ -195,7 +323,7 @@ encode:
 ; Print out error for insufficient arguments 
 insufficient_args:
     mov rax, sys_write 
-    mov rdi, 1
+    mov rdi, 1 
     mov rsi, err_insufficient_args
     mov rdx, 0x17 
     syscall
@@ -203,5 +331,5 @@ insufficient_args:
 
 exit:
     mov rax, sys_exit ; exit
-    mov rdi, 0
+    mov rdi, 0x0
     syscall
