@@ -46,19 +46,19 @@ count:
     ; Set counter register to 0 
     xor rcx, rcx
 
-count_loop:
+.loop:
     ; Loop through each letter and build map on letter frequencies
     mov dl, [rsi + rcx] ; Fetch current letter to process
     cmp dl, 0    ; Check if null character
-    je count_exit
+    je .exit
 
     push rcx             ; Save counter to prepare for inner loop
     xor rcx, rcx         ; Start count at zero
 
 ; Search if map has existing entry for this letter
-count_search_loop:
+.search_loop:
     cmp dword [rax], ecx ; Check if reached end of map
-    je count_search_add  ; Jump to create new map entry
+    je .search_add  ; Jump to create new map entry
 
     ; Calculate address of letter 
     imul rbx, rcx, 0x6
@@ -66,20 +66,20 @@ count_search_loop:
     add rbx, 0x4
 
     cmp dl, byte [rbx + 1]     ; Check if letters are equal
-    jne count_search_continue
+    jne .search_continue
 
     ; Found existing map entry for the letter, so add one to the frequency count
     mov r8d, dword [rbx + 2]
     inc r8d 
     mov [rbx + 2], r8d 
-    jmp count_search_exit
+    jmp .search_exit
 
-count_search_continue:
+.search_continue:
     inc ecx ; Move to next map entry
-    jmp count_search_loop
+    jmp .search_loop
 
 ; Create new map entry { bool, char, int }
-count_search_add:
+.search_add:
     ; Increase map length
     mov ebx, [rax]
     inc ebx
@@ -94,12 +94,12 @@ count_search_add:
     mov [rbx + 1], dl
     mov dword [rbx + 2], 0x1
 
-count_search_exit:
+.search_exit:
     pop rcx ; Restore counter register for outer loop (letters loop)
     inc rcx ; Move to next letter 
-    jmp count_loop
+    jmp .loop
 
-count_exit:
+.exit:
     mov rsp, rbp
     pop rbp
     ret
@@ -108,11 +108,11 @@ count_exit:
 sort:
     xor rcx, rcx
 
-sort_loop:
+.loop:
     inc rcx
 
     cmp ecx, dword [rax]
-    je sort_exit
+    je .exit
 
     imul r15, rcx, 0x6
     add r15, rax
@@ -120,11 +120,11 @@ sort_loop:
 
     push rcx
 
-sort_search:
+.search:
     dec rcx
 
     cmp rcx, -0x1
-    je sort_search_exit
+    je .search_exit
 
     imul r14, rcx, 0x6
     add r14, rax
@@ -132,7 +132,7 @@ sort_search:
 
     mov r13d, dword [r15 + 2]
     cmp r13d, dword [r14 + 2]
-    jge sort_search_exit
+    jge .search_exit
 
     ; Swap map entries at r14 and 15
     mov r12d, [r14 + 2]
@@ -145,13 +145,13 @@ sort_search:
     mov [r15 + 1], r12b
 
     mov r15, r14
-    jmp sort_search
+    jmp .search
 
-sort_search_exit:
+.search_exit:
     pop rcx
-    jmp sort_loop
+    jmp .loop
 
-sort_exit:
+.exit:
     ret
 
 ; Build huffman tree
@@ -171,20 +171,20 @@ tree:
     add r14, r15 
 
 ; Create leaves from the frequency map
-tree_base:
+.base:
     mov [r15 + rcx * 8], rbx
     add rbx, 0x6
     inc rcx
 
     cmp ecx, dword [rax]
-    jne tree_base 
+    jne .base 
 
     ; Check for only one leaf, if so no need to build tree
     cmp rcx, 0x1 
-    je tree_exit
+    je .exit
 
 ; Start constructing tree from the leaves
-tree_construct:
+.construct:
     push rcx
     ; Load params to tree_create_node
     mov r13, [r15 + 8]
@@ -217,17 +217,18 @@ tree_construct:
 
     dec rcx
     cmp rcx, 0x1 
-    je tree_exit
+    je .exit
 
     mov r10, 0x1 
-tree_insert:
+
+.insert:
     mov rax, [r9 + 8]
     push rax
     call tree_get_freq
     add rsp, 0x8
 
     cmp eax, r8d
-    jg tree_construct
+    jg .construct
 
     mov rax, [r9 + 8]
     mov [r9], rax    
@@ -236,10 +237,10 @@ tree_insert:
     add r9, 0x8
     inc r10
     cmp r10, rcx
-    jne tree_insert
-    jmp tree_construct
+    jne .insert
+    jmp .construct
 
-tree_exit:
+.exit:
     ret
 
 ; Create huffman tree node { bool, void*, void*, int }
@@ -288,29 +289,29 @@ tree_get_freq:
 
     ; Check if node param is non null 
     cmp rax, 0x0
-    je tree_get_freq_def
+    je .freq_def
 
     ; Check if node param is a leaf
     cmp byte [rax], 0x0
-    jne tree_get_node_freq
+    jne .node_freq
 
     ; Get size of leaf
     mov eax, dword [rax + 2]
-    jmp tree_get_freq_exit
+    jmp .exit 
 
-tree_get_node_freq:
+.node_freq:
     ; Check if node param is not a leaf
     cmp byte [rax], 0x1
-    jne tree_get_freq_def
+    jne .freq_def
 
     ; Get size of node
     mov eax, dword [rax + 17]
-    jmp tree_get_freq_exit
+    jmp .exit
 
-tree_get_freq_def:
+.freq_def:
     mov rax, 0x0
 
-tree_get_freq_exit:
+.exit:
     mov rsp, rbp
     pop rbp
     ret
@@ -319,6 +320,7 @@ tree_get_freq_exit:
 encode:
 
     ret
+
 
 ; Print out error for insufficient arguments 
 insufficient_args:
