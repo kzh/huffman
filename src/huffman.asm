@@ -6,6 +6,7 @@ section .data
     sys_mmap:  equ 0x20000C5
 
     err_insufficient_args: db "Insufficient arguments", 0xA
+    newline: db 0xA
 
 section .text
 start:
@@ -20,6 +21,20 @@ start:
     call sort
     call tree
     call encode
+
+    ; Print out results
+    mov rsi, r12
+    mov rax, sys_write 
+    mov rdi, 1 
+    mov rdx, r13 
+    syscall
+
+   ; Print newline 
+    mov rax, sys_write
+    mov rsi, newline
+    mov rdi, 1
+    mov rdx, 1
+    syscall
 
     jmp exit
 
@@ -343,7 +358,7 @@ encode_char:
     jne .exit
 
     ; Traverse left
-    mov byte [r12 + r13], 0x0
+    mov byte [r12 + r13], 0x30
     inc r13
 
     push rbx
@@ -358,7 +373,7 @@ encode_char:
     dec r13
 
     ; Traverse right
-    mov byte [r12 + r13], 0x1
+    mov byte [r12 + r13], 0x31
     inc r13
 
     push rbx
