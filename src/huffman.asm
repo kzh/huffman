@@ -2,8 +2,8 @@ global start
 
 section .data
     sys_write: equ 0x2000004 
-    sys_exit: equ 0x2000001
-    sys_mmap: equ 0x20000C5
+    sys_exit:  equ 0x2000001
+    sys_mmap:  equ 0x20000C5
 
     err_insufficient_args: db "Insufficient arguments", 0xA
 
@@ -19,6 +19,7 @@ start:
     call count
     call sort
     call tree
+    call encode
 
     jmp exit
 
@@ -30,7 +31,7 @@ count:
     ; Allocate memory 
     mov rax, sys_mmap
     xor rdi, rdi
-    mov rsi, 0x1000 ; 4096 bytes
+    mov rsi, 0x4000 ; 16384 bytes
     mov rdx, 0x3    ; READ and WRITE access
     mov r10, 0x1002 ; PRIVATE and ANON flag 
     mov r8, -0x1    ; No file backing
@@ -316,11 +317,107 @@ tree_get_freq:
     pop rbp
     ret
 
+; Encode a single char
+encode_char:
+    push rbp
+    mov rbp, rsp
+
+    ; Default retun value of false
+    xor rax, rax
+
+    ; Retrieve parameters
+    mov rbx, [rbp + 16] ; Retrieve tree node
+
+    ; Check whether is node or leaf
+    cmp byte [rbx], 0
+    jne .is_node
+
+    cmp byte [rbx + 1], dl
+    jne .exit 
+
+    mov rax, 0x1
+    jmp .exit
+
+.is_node:
+    cmp byte [rbx], 0x1
+    jne .exit
+
+    ; Traverse left
+    mov byte [r12 + r13], 0x0
+    inc r13
+
+    push rbx
+    mov rbx, [rbx + 1]
+    push rbx
+    call encode_char
+    add rsp, 0x8 
+    pop rbx
+
+    cmp rax, 0x1
+    je .exit
+    dec r13
+
+    ; Traverse right
+    mov byte [r12 + r13], 0x1
+    inc r13
+
+    push rbx
+    mov rbx, [rbx + 9]
+    push rbx
+    call encode_char
+    add rsp, 0x8
+    pop rbx
+
+    cmp rax, 0x1
+    je .exit
+    dec r13
+
+.exit:
+    mov rsp, rbp
+    pop rbp
+    ret
+
 ; Encode string using huffman tree 
 encode:
 
-    ret
+    ; Save register to prepare for syscall
+    push rsi
 
+    ; Allocate memory
+    mov rax, sys_mmap
+    xor rdi, rdi
+    mov rsi, 0x1000 ; 4096 bytes
+    mov rdx, 0x3    ; READ and WRITE access
+    mov r10, 0x1002 ; PRIVATE and ANON flag
+    mov r8, -0x1    ; No file backing
+    xor r9, r9      ; No offset
+    syscall
+
+    ; Restore register after syscall
+    pop rsi
+
+    mov r12, rax
+
+    ; Store position for end of string we are building 
+    xor r13, r13
+    mov r10, 0x100
+
+    xor rcx, rcx ; Clear counter register
+
+    mov r15, [r15]
+    push r15
+
+.loop:
+    mov dl, byte [rsi + rcx]
+    call encode_char
+
+    inc rcx
+    cmp byte [rsi + rcx], 0
+    jne .loop
+
+.exit:
+    pop r15
+    ret
 
 ; Print out error for insufficient arguments 
 insufficient_args:
