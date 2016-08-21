@@ -148,9 +148,17 @@ sort:
 
     mov r13d, dword [r15 + 2]
     cmp r13d, dword [r14 + 2]
-    jge .search_exit
+    jg .search_exit
+
+    cmp r13d, dword [r14 + 2]
+    jne .swap
+
+    mov r8b, byte [r15 + 1] 
+    cmp r8b, byte [r14 + 1]
+    jg .search_exit
 
     ; Swap map entries at r14 and 15
+.swap:
     mov r12d, [r14 + 2]
     mov [r14 + 2], r13d
     mov [r15 + 2], r12d
