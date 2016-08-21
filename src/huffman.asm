@@ -252,7 +252,7 @@ tree:
     add rsp, 0x8
 
     cmp eax, r8d
-    jg .construct
+    jge .construct
 
     mov rax, [r9 + 8]
     mov [r9], rax    
@@ -433,6 +433,9 @@ encode:
 .loop:
     mov dl, byte [rsi + rcx]
     call encode_char
+
+    mov byte [r12 + r13], 0x20
+    inc r13
 
     inc rcx
     cmp byte [rsi + rcx], 0
