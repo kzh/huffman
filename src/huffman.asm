@@ -6,17 +6,36 @@ section .data
     sys_mmap:  equ 0x20000C5
 
     err_insufficient_args: db "Insufficient arguments", 0xA
+    .len: equ $ - err_insufficient_args
+    err_invalid_action: db "Invalid action", 0xA
+    .len: equ $ - err_invalid_action
+
     newline: db 0xA
 
 section .text
 start:
     ; Check for neccesary arguments
     mov rdx, [rsp]
-    cmp rdx, 2
+    cmp rdx, 3 
     jl insufficient_args
 
     ; Skip over argc and argc[0]
     add rsp, 0x10
+    ; Retrieve action (either encode or decode)
+    pop rdx
+
+    ; Check for encode action
+    cmp byte [rdx], 0x65
+    je .encode
+
+    ; Check for decode action
+    cmp byte [rdx], 0x64
+    jne invalid_action 
+ 
+.decode:
+    jmp exit
+
+.encode:
     call count
     call sort
     call tree
@@ -445,12 +464,21 @@ encode:
     pop r15
     ret
 
+; Print out error for invalid action 
+invalid_action:
+    mov rax, sys_write 
+    mov rdi, 1 
+    mov rsi, err_invalid_action
+    mov rdx, err_invalid_action.len
+    syscall
+    jmp exit
+
 ; Print out error for insufficient arguments 
 insufficient_args:
     mov rax, sys_write 
     mov rdi, 1 
     mov rsi, err_insufficient_args
-    mov rdx, 0x17 
+    mov rdx, err_insufficient_args.len
     syscall
     jmp exit
 
